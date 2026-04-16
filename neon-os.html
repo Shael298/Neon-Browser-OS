@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEON//OS v2.4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Major+Mono+Display&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --bg: #07070c;
+    --panel: rgba(12, 14, 22, 0.72);
+    --panel-solid: #0c0e16;
+    --border: rgba(255, 60, 170, 0.35);
+    --border-soft: rgba(255, 255, 255, 0.08);
+    --text: #e8e8f0;
+    --text-dim: #8a8aa0;
+    --accent: #ff2ea6;
+    --accent-2: #00e5ff;
+    --accent-3: #c2ff3d;
+    --glow: 0 0 20px rgba(255, 46, 166, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* DESKTOP / WALLPAPER */
+  #desktop {
+    position: fixed; inset: 0;
+    overflow: hidden;
+    background: #000;
+  }
+  #wallpaper {
+    position: absolute; inset: 0;
+    z-index: 0;
+    transition: opacity 0.6s ease;
+  }
+  #wallpaper.grid {
+    background:
+      linear-gradient(rgba(255, 46, 166, 0.08) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, rgba(255, 46, 166, 0.08) 1px, transparent 1px) 0 0 / 40px 40px,
+      radial-gradient(ellipse at 50% 100%, rgba(255, 46, 166, 0.25), transparent 60%),
+      radial-gradient(ellipse at 50% 0%, rgba(0, 229, 255, 0.18), transparent 55%),
+      linear-gradient(180deg, #0a0415 0%, #1a0328 50%, #2a0540 100%);
+  }
+  #wallpaper.sunset {
+    background:
+      radial-gradient(circle at 50% 75%, #ff8a3d 0%, #ff2ea6 20%, #7a1e8a 45%, #1a0830 75%, #050210 100%);
+  }
+  #wallpaper.matrix {
+    background:
+      repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 255, 120, 0.03) 2px, rgba(0, 255, 120, 0.03) 4px),
+      linear-gradient(180deg, #001208 0%, #000500 100%);
+  }
+  #wallpaper.void {
+    background: #000;
+  }
+  #wallpaper.plasma {
+    background:
+      radial-gradient(circle at 20% 30%, #ff2ea6 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, #00e5ff 0%, transparent 45%),
+      radial-gradient(circle at 50% 50%, #c2ff3d 0%, transparent 30%),
+      #0a0820;
+    filter: blur(0px);
+    animation: plasmaShift 20s ease-in-out infinite;
+  }
+  @keyframes plasmaShift {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(40deg); }
+  }
+
+  /* Scanlines overlay */
+  #scanlines {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0) 0px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0.12) 3px,
+      rgba(0, 0, 0, 0) 4px
+    );
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+  }
+
+  /* DESKTOP ICONS */
+  #desktop-icons {
+    position: absolute;
+    top: 24px; left: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 88px);
+    gap: 8px;
+    z-index: 1;
+  }
+  .desktop-icon {
+    width: 88px; height: 88px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 8px;
+    transition: background 0.15s;
+  }
+  .desktop-icon:hover {
+    background: rgba(255, 46, 166, 0.08);
+  }
+  .desktop-icon .icon-glyph {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    font-family: 'Major Mono Display', monospace;
+    font-size: 22px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent);
+  }
+  .desktop-icon .icon-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    text-align: center;
+  }
+
+  /* WINDOW */
+  .window {
+    position: absolute;
+    min-width: 320px; min-height: 200px;
+    background: var(--panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.4),
+      0 24px 60px rgba(0,0,0,0.6),
+      var(--glow);
+    display: flex; flex-direction: column;
+    z-index: 10;
+    overflow: hidden;
+  }
+  .window.active {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.4),
+      0 24px 60px rgba(0,0,0,0.7),
+      0 0 30px rgba(255, 46, 166, 0.5);
+  }
+  .titlebar {
+    height: 32px;
+    display: flex; align-items: center;
+    padding: 0 8px 0 12px;
+    background: linear-gradient(180deg, rgba(255, 46, 166, 0.12), rgba(255, 46, 166, 0.04));
+    border-bottom: 1px solid var(--border-soft);
+    cursor: grab;
+    flex-shrink: 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .titlebar:active { cursor: grabbing; }
+  .titlebar .title-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    margin-right: 10px;
+  }
+  .titlebar .title-text { flex: 1; }
+  .titlebar .controls { display: flex; gap: 4px; }
+  .ctrl-btn {
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ctrl-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .ctrl-btn.close:hover {
+    background: var(--accent);
+    color: #000;
+  }
+  .window-body {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    background: var(--panel-solid);
+  }
+  .resize-handle {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    z-index: 2;
+    background: linear-gradient(135deg, transparent 50%, var(--accent) 50%, var(--accent) 60%, transparent 60%, transparent 70%, var(--accent) 70%, var(--accent) 80%, transparent 80%);
+    opacity: 0.5;
+  }
+
+  /* TASKBAR */
+  #taskbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 44px;
+    background: rgba(7, 7, 12, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px;
+    z-index: 100;
+    gap: 8px;
+  }
+  #start-btn {
+    height: 28px;
+    padding: 0 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Major Mono Display', monospace;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    box-shadow: 0 0 12px rgba(255, 46, 166, 0.6);
+  }
+  #start-btn:hover { background: var(--accent-2); box-shadow: 0 0 12px var(--accent-2); }
+
+  #taskbar-windows {
+    flex: 1;
+    display: flex; gap: 6px;
+    overflow: hidden;
+  }
+  .task-btn {
+    height: 28px;
+    padding: 0 10px;
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .task-btn:hover { border-color: var(--accent); color: var(--text); }
+  .task-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255, 46, 166, 0.1); }
+
+  #systray {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #systray .tray-item {
+    padding: 4px 8px;
+    border: 1px solid var(--border-soft);
+    cursor: pointer;
+  }
+  #systray .tray-item:hover { border-color: var(--accent); color: var(--accent); }
+  #clock { color: var(--accent-2); }
+
+  /* START MENU */
+  #start-menu {
+    position: fixed;
+    bottom: 48px; left: 12px;
+    width: 260px;
+    background: var(--panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 30px rgba(255, 46, 166, 0.4);
+    padding: 8px;
+    z-index: 200;
+    display: none;
+  }
+  #start-menu.open { display: block; }
+  #start-menu .menu-header {
+    font-family: 'Major Mono Display', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    padding: 8px 12px 12px;
+    letter-spacing: 0.2em;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 8px;
+  }
+  .menu-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text);
+    transition: background 0.15s;
+  }
+  .menu-item:hover { background: rgba(255, 46, 166, 0.12); }
+  .menu-item .mi-glyph {
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent-2);
+    border: 1px solid var(--border-soft);
+    font-size: 12px;
+  }
+
+  /* APP-SPECIFIC STYLES */
+  /* Terminal */
+  .terminal {
+    width: 100%; height: 100%;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent-3);
+    background: #030306;
+    overflow-y: auto;
+    cursor: text;
+  }
+  .terminal .line { white-space: pre-wrap; word-break: break-all; }
+  .terminal .prompt { color: var(--accent); }
+  .terminal .input-line { display: flex; }
+  .terminal input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--accent-3);
+    font-family: inherit;
+    font-size: inherit;
+    caret-color: var(--accent);
+  }
+
+  /* Notepad */
+  .notepad {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+  }
+  .notepad .toolbar {
+    height: 32px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border-soft);
+    font-size: 10px;
+  }
+  .notepad .toolbar button {
+    height: 22px; padding: 0 10px;
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+  .notepad .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .notepad textarea {
+    flex: 1;
+    background: #0a0a14;
+    border: none;
+    outline: none;
+    padding: 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    resize: none;
+    line-height: 1.6;
+  }
+
+  /* Settings */
+  .settings {
+    padding: 20px;
+    color: var(--text);
+    font-size: 12px;
+  }
+  .settings h3 {
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .wallpaper-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .wp-option {
+    aspect-ratio: 16/10;
+    border: 1px solid var(--border-soft);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.15s;
+  }
+  .wp-option:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .wp-option.active { border-color: var(--accent); box-shadow: 0 0 10px rgba(255, 46, 166, 0.5); }
+  .wp-option .wp-label {
+    position: absolute;
+    bottom: 4px; left: 6px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 0 4px #000;
+  }
+
+  /* File Explorer */
+  .explorer {
+    padding: 12px;
+    font-size: 12px;
+  }
+  .explorer h3 {
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  .file-list { list-style: none; }
+  .file-list li {
+    padding: 6px 10px;
+    border: 1px solid var(--border-soft);
+    margin-bottom: 4px;
+    cursor: pointer;
+    display: flex; justify-content: space-between;
+    align-items: center;
+    transition: all 0.12s;
+  }
+  .file-list li:hover { border-color: var(--accent); color: var(--accent); }
+  .file-list li .fsize { color: var(--text-dim); font-size: 10px; }
+  .file-list .empty { color: var(--text-dim); text-align: center; padding: 20px; }
+
+  /* Games */
+  .game-container {
+    width: 100%; height: 100%;
+    position: relative;
+    background: #000;
+  }
+  .game-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+  .game-hud {
+    position: absolute;
+    top: 12px; left: 12px;
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent-2);
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 8px var(--accent-2);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .game-hud .score { color: var(--accent-3); text-shadow: 0 0 8px var(--accent-3); font-size: 20px; }
+  .game-overlay {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    background: rgba(0,0,0,0.78);
+    z-index: 3;
+    text-align: center;
+    padding: 20px;
+  }
+  .game-overlay.hidden { display: none; }
+  .game-overlay h1 {
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent);
+    font-size: 32px;
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 20px var(--accent);
+    margin-bottom: 14px;
+  }
+  .game-overlay p {
+    color: var(--text);
+    margin-bottom: 18px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    line-height: 1.8;
+  }
+  .game-overlay button {
+    padding: 12px 28px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Major Mono Display', monospace;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(255, 46, 166, 0.6);
+  }
+  .game-overlay button:hover { background: var(--accent-2); box-shadow: 0 0 20px var(--accent-2); }
+
+  /* TIME REWIND (Special Feature) */
+  #rewind-panel {
+    position: fixed;
+    bottom: 52px; right: 12px;
+    width: 360px;
+    background: var(--panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--accent-2);
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+    padding: 16px;
+    z-index: 300;
+    display: none;
+  }
+  #rewind-panel.open { display: block; }
+  #rewind-panel h3 {
+    font-family: 'Major Mono Display', monospace;
+    color: var(--accent-2);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  #rewind-panel p {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  #rewind-slider {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 4px;
+    background: rgba(0, 229, 255, 0.2);
+    outline: none;
+    margin-bottom: 8px;
+  }
+  #rewind-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent-2);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-2);
+    border-radius: 0;
+  }
+  #rewind-slider::-moz-range-thumb {
+    width: 14px; height: 14px;
+    background: var(--accent-2);
+    cursor: pointer;
+    border: none;
+    border-radius: 0;
+  }
+  #rewind-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-3);
+    display: flex; justify-content: space-between;
+  }
+  #rewind-actions {
+    display: flex; gap: 8px;
+    margin-top: 12px;
+  }
+  #rewind-actions button {
+    flex: 1;
+    padding: 6px;
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+  #rewind-actions button:hover { border-color: var(--accent-2); color: var(--accent-2); }
+
+  /* Rewind visual effect */
+  #rewind-effect {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 229, 255, 0.05) 0px,
+      transparent 2px,
+      transparent 6px,
+      rgba(0, 229, 255, 0.05) 8px
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #rewind-effect.active {
+    opacity: 1;
+    animation: rewindFlicker 0.2s steps(2) infinite;
+  }
+  @keyframes rewindFlicker {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(2px); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  .window-body > * { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="desktop">
+  <div id="wallpaper" class="grid"></div>
+  <div id="desktop-icons"></div>
+</div>
+
+<div id="rewind-effect"></div>
+<div id="scanlines"></div>
+
+<div id="start-menu">
+  <div class="menu-header">NEON//OS — v2.4</div>
+  <div id="menu-items"></div>
+</div>
+
+<div id="rewind-panel">
+  <h3>⏮ TIME REWIND</h3>
+  <p>Scrub the last 60s of your desktop history. Move the slider to rewind window positions, typed text, and app state.</p>
+  <input type="range" id="rewind-slider" min="0" max="100" value="100">
+  <div id="rewind-status">
+    <span id="rewind-time">NOW</span>
+    <span id="rewind-snapshots">0 snapshots</span>
+  </div>
+  <div id="rewind-actions">
+    <button id="rewind-restore">RESTORE HERE</button>
+    <button id="rewind-cancel">CANCEL</button>
+  </div>
+</div>
+
+<div id="taskbar">
+  <button id="start-btn">NEON//</button>
+  <div id="taskbar-windows"></div>
+  <div id="systray">
+    <div class="tray-item" id="rewind-btn" title="Time Rewind — the special feature">⏮ REWIND</div>
+    <div class="tray-item" id="clock">00:00:00</div>
+  </div>
+</div>
+
+<script>
+/* =============================================================
+   NEON//OS — a browser OS with 3D games and time rewind
+   ============================================================= */
+
+const OS = {
+  windows: new Map(),
+  zTop: 10,
+  activeWin: null,
+  snapshots: [],
+  maxSnapshots: 120, // ~60s at 2 snapshots/sec
+  rewindMode: false,
+  files: JSON.parse(localStorage.getItem('neonos_files') || '[]'),
+};
+
+/* ---------- UTIL ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const el = (tag, props = {}, ...children) => {
+  const e = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => {
+    if (k === 'class') e.className = v;
+    else if (k === 'style') Object.assign(e.style, v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  children.flat().forEach(c => {
+    if (c == null) return;
+    e.append(c instanceof Node ? c : document.createTextNode(c));
+  });
+  return e;
+};
+
+/* ---------- CLOCK ---------- */
+function tickClock() {
+  const d = new Date();
+  $('#clock').textContent = d.toTimeString().slice(0, 8);
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---------- WINDOW SYSTEM ---------- */
+let winSeq = 0;
+function createWindow({ title, width = 640, height = 440, x, y, content, icon = '░' }) {
+  const id = 'win-' + (++winSeq);
+  x = x ?? 80 + (winSeq * 24) % 200;
+  y = y ?? 60 + (winSeq * 24) % 150;
+
+  const body = el('div', { class: 'window-body' });
+  const win = el('div', { class: 'window' },
+    el('div', { class: 'titlebar' },
+      el('span', { class: 'title-dot' }),
+      el('span', { class: 'title-text' }, title),
+      el('div', { class: 'controls' },
+        el('button', { class: 'ctrl-btn', onclick: (e) => { e.stopPropagation(); minimize(id); } }, '_'),
+        el('button', { class: 'ctrl-btn close', onclick: (e) => { e.stopPropagation(); closeWindow(id); } }, '×'),
+      )
+    ),
+    body,
+    el('div', { class: 'resize-handle' })
+  );
+  win.style.left = x + 'px';
+  win.style.top = y + 'px';
+  win.style.width = width + 'px';
+  win.style.height = height + 'px';
+  win.dataset.id = id;
+
+  document.body.append(win);
+  body.append(content);
+
+  const record = { id, el: win, title, icon, content, body, minimized: false };
+  OS.windows.set(id, record);
+
+  makeDraggable(win, record);
+  makeResizable(win, record);
+  win.addEventListener('mousedown', () => focusWindow(id));
+
+  focusWindow(id);
+  refreshTaskbar();
+  snapshot('open:' + title);
+  return record;
+}
+
+function focusWindow(id) {
+  const r = OS.windows.get(id);
+  if (!r) return;
+  OS.zTop++;
+  r.el.style.zIndex = OS.zTop;
+  r.el.style.display = 'flex';
+  r.minimized = false;
+  OS.windows.forEach(w => w.el.classList.remove('active'));
+  r.el.classList.add('active');
+  OS.activeWin = id;
+  refreshTaskbar();
+}
+
+function minimize(id) {
+  const r = OS.windows.get(id);
+  if (!r) return;
+  r.el.style.display = 'none';
+  r.minimized = true;
+  refreshTaskbar();
+  snapshot('min');
+}
+
+function closeWindow(id) {
+  const r = OS.windows.get(id);
+  if (!r) return;
+  // notify app for cleanup
+  if (r.onClose) try { r.onClose(); } catch(e) {}
+  r.el.remove();
+  OS.windows.delete(id);
+  refreshTaskbar();
+  snapshot('close');
+}
+
+function makeDraggable(win, record) {
+  const tb = win.querySelector('.titlebar');
+  tb.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.controls')) return;
+    focusWindow(record.id);
+    const startX = e.clientX, startY = e.clientY;
+    const origX = win.offsetLeft, origY = win.offsetTop;
+    const mv = (ev) => {
+      win.style.left = Math.max(0, origX + ev.clientX - startX) + 'px';
+      win.style.top = Math.max(0, origY + ev.clientY - startY) + 'px';
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', mv);
+      document.removeEventListener('mouseup', up);
+      snapshot('move');
+    };
+    document.addEventListener('mousemove', mv);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+function makeResizable(win, record) {
+  const h = win.querySelector('.resize-handle');
+  h.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    focusWindow(record.id);
+    const startX = e.clientX, startY = e.clientY;
+    const origW = win.offsetWidth, origH = win.offsetHeight;
+    const mv = (ev) => {
+      win.style.width = Math.max(320, origW + ev.clientX - startX) + 'px';
+      win.style.height = Math.max(200, origH + ev.clientY - startY) + 'px';
+      if (record.onResize) record.onResize();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', mv);
+      document.removeEventListener('mouseup', up);
+      snapshot('resize');
+    };
+    document.addEventListener('mousemove', mv);
+    document.addEventListener('mouseup', up);
+  });
+}
+
+/* ---------- TASKBAR ---------- */
+function refreshTaskbar() {
+  const bar = $('#taskbar-windows');
+  bar.innerHTML = '';
+  OS.windows.forEach(r => {
+    const btn = el('button', {
+      class: 'task-btn' + (OS.activeWin === r.id && !r.minimized ? ' active' : ''),
+      onclick: () => {
+        if (r.minimized) focusWindow(r.id);
+        else if (OS.activeWin === r.id) minimize(r.id);
+        else focusWindow(r.id);
+      }
+    }, r.title);
+    bar.append(btn);
+  });
+}
+
+/* =============================================================
+   APPS
+   ============================================================= */
+const APPS = [
+  { id: 'runner', title: 'Neon Runner', glyph: 'nr', desc: 'Cyberpunk endless runner', open: openNeonRunner },
+  { id: 'cubes', title: 'Cube Breaker', glyph: 'cb', desc: '3D cube smasher', open: openCubeBreaker },
+  { id: 'term', title: 'Terminal', glyph: '>_', desc: 'Command line', open: openTerminal },
+  { id: 'note', title: 'Notepad', glyph: 'np', desc: 'Text editor', open: openNotepad },
+  { id: 'exp', title: 'File Explorer', glyph: 'fx', desc: 'Browse saved files', open: openExplorer },
+  { id: 'set', title: 'Settings', glyph: 'st', desc: 'Change wallpaper & more', open: openSettings },
+];
+
+/* ---------- DESKTOP ICONS ---------- */
+function buildDesktopIcons() {
+  const host = $('#desktop-icons');
+  APPS.forEach(a => {
+    const icon = el('div', { class: 'desktop-icon', ondblclick: a.open },
+      el('div', { class: 'icon-glyph' }, a.glyph),
+      el('div', { class: 'icon-label' }, a.title)
+    );
+    host.append(icon);
+  });
+}
+
+/* ---------- START MENU ---------- */
+function buildStartMenu() {
+  const host = $('#menu-items');
+  APPS.forEach(a => {
+    host.append(el('div', { class: 'menu-item', onclick: () => { a.open(); toggleStart(false); } },
+      el('span', { class: 'mi-glyph' }, a.glyph),
+      el('span', {}, a.title)
+    ));
+  });
+}
+function toggleStart(force) {
+  const m = $('#start-menu');
+  const open = force === undefined ? !m.classList.contains('open') : force;
+  m.classList.toggle('open', open);
+}
+$('#start-btn').onclick = () => toggleStart();
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) toggleStart(false);
+  if (!e.target.closest('#rewind-panel') && !e.target.closest('#rewind-btn')) { /* keep rewind unless cancelled */ }
+});
+
+/* =============================================================
+   APP: TERMINAL
+   ============================================================= */
+function openTerminal() {
+  const out = el('div', { class: 'terminal' });
+  const history = [];
+  let histIdx = 0;
+
+  const print = (txt, cls) => {
+    const l = el('div', { class: 'line' + (cls ? ' ' + cls : '') }, txt);
+    out.append(l);
+    out.scrollTop = out.scrollHeight;
+  };
+
+  const banner = [
+    '╔══════════════════════════════════════╗',
+    '║  NEON//OS v2.4  —  SHELL READY      ║',
+    '╚══════════════════════════════════════╝',
+    'Type "help" for commands.',
+    ''
+  ];
+  banner.forEach(b => print(b));
+
+  const input = el('input', { type: 'text', autofocus: 'true', spellcheck: 'false' });
+  const line = el('div', { class: 'input-line' },
+    el('span', { class: 'prompt' }, 'guest@neon ~ $ '),
+    input
+  );
+  out.append(line);
+
+  const commands = {
+    help: () => ['Available:', '  help, clear, echo, date, whoami, ls, cat <file>,',
+                 '  write <file> <text>, run <app>, theme <name>, rewind, about'],
+    clear: () => { out.querySelectorAll('.line').forEach(n => n.remove()); return []; },
+    echo: (a) => [a.join(' ')],
+    date: () => [new Date().toString()],
+    whoami: () => ['guest'],
+    ls: () => OS.files.length ? OS.files.map(f => `  ${f.name}  (${f.content.length}b)`) : ['  (empty)'],
+    cat: (a) => {
+      const f = OS.files.find(f => f.name === a[0]);
+      return f ? f.content.split('\n') : [`cat: ${a[0]}: no such file`];
+    },
+    write: (a) => {
+      const name = a[0]; const content = a.slice(1).join(' ');
+      if (!name) return ['usage: write <file> <text>'];
+      saveFile(name, content);
+      return [`wrote ${name}`];
+    },
+    run: (a) => {
+      const app = APPS.find(x => x.id === a[0] || x.title.toLowerCase().replace(/\s/g,'') === a[0]);
+      if (!app) return [`run: unknown app "${a[0]}". try: ${APPS.map(x=>x.id).join(', ')}`];
+      app.open(); return [`launched ${app.title}`];
+    },
+    theme: (a) => {
+      const t = a[0];
+      const ok = ['grid','sunset','matrix','void','plasma'];
+      if (!ok.includes(t)) return [`theme: "${t}" not found. try: ${ok.join(', ')}`];
+      setWallpaper(t); return [`theme set to ${t}`];
+    },
+    rewind: () => { toggleRewind(); return ['time rewind panel opened']; },
+    about: () => [
+      'NEON//OS is a single-file browser OS.',
+      'Special feature: TIME REWIND — scrub through your',
+      'desktop state history (window positions, typed text,',
+      'app state). A VCR for your entire session.'
+    ],
+  };
+
+  const runCmd = (raw) => {
+    const trimmed = raw.trim();
+    print('guest@neon ~ $ ' + trimmed, 'prompt');
+    if (!trimmed) return;
+    history.push(trimmed); histIdx = history.length;
+    const [cmd, ...args] = trimmed.split(/\s+/);
+    const fn = commands[cmd];
+    const res = fn ? fn(args) : [`${cmd}: command not found`];
+    res.forEach(r => print(r));
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const v = input.value; input.value = '';
+      // move line above, create new
+      line.remove();
+      runCmd(v);
+      out.append(line); input.focus();
+      out.scrollTop = out.scrollHeight;
+      snapshot('term');
+    } else if (e.key === 'ArrowUp') {
+      if (histIdx > 0) { histIdx--; input.value = history[histIdx] || ''; }
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown') {
+      if (histIdx < history.length) { histIdx++; input.value = history[histIdx] || ''; }
+      e.preventDefault();
+    }
+  });
+
+  out.addEventListener('click', () => input.focus());
+
+  createWindow({ title: 'Terminal', width: 560, height: 380, content: out });
+  setTimeout(() => input.focus(), 50);
+}
+
+/* =============================================================
+   APP: NOTEPAD
+   ============================================================= */
+function openNotepad(preload = null) {
+  const wrap = el('div', { class: 'notepad' });
+  const toolbar = el('div', { class: 'toolbar' });
+  const ta = el('textarea', { spellcheck: 'false', placeholder: '// Start typing...' });
+  if (preload) ta.value = preload.content;
+
+  let currentName = preload ? preload.name : null;
+  const nameLabel = el('span', { style: { color: 'var(--text-dim)', fontSize: '10px', marginLeft: 'auto' } }, currentName || 'untitled');
+
+  toolbar.append(
+    el('button', { onclick: () => {
+      const n = prompt('File name:', currentName || 'note-' + Date.now() + '.txt');
+      if (!n) return;
+      saveFile(n, ta.value);
+      currentName = n;
+      nameLabel.textContent = n;
+    }}, 'Save'),
+    el('button', { onclick: () => { ta.value = ''; currentName = null; nameLabel.textContent = 'untitled'; } }, 'New'),
+    el('button', { onclick: () => {
+      if (!OS.files.length) return alert('No saved files.');
+      const name = prompt('Open file (exact name):\n\n' + OS.files.map(f => '  ' + f.name).join('\n'));
+      const f = OS.files.find(f => f.name === name);
+      if (f) { ta.value = f.content; currentName = f.name; nameLabel.textContent = f.name; }
+    }}, 'Open'),
+    nameLabel
+  );
+
+  ta.addEventListener('input', () => snapshot('type'));
+
+  wrap.append(toolbar, ta);
+  createWindow({ title: 'Notepad', width: 560, height: 420, content: wrap });
+}
+
+function saveFile(name, content) {
+  const i = OS.files.findIndex(f => f.name === name);
+  const rec = { name, content, modified: Date.now() };
+  if (i >= 0) OS.files[i] = rec;
+  else OS.files.push(rec);
+  localStorage.setItem('neonos_files', JSON.stringify(OS.files));
+}
+
+/* =============================================================
+   APP: FILE EXPLORER
+   ============================================================= */
+function openExplorer() {
+  const wrap = el('div', { class: 'explorer' });
+  const render = () => {
+    wrap.innerHTML = '';
+    const h = el('h3', {}, '// filesystem //');
+    const list = el('ul', { class: 'file-list' });
+    if (OS.files.length === 0) {
+      list.append(el('li', { class: 'empty' }, 'no files. open Notepad to create one.'));
+    } else {
+      OS.files.forEach(f => {
+        list.append(el('li', {
+          onclick: () => openNotepad(f),
+          oncontextmenu: (e) => {
+            e.preventDefault();
+            if (confirm(`Delete "${f.name}"?`)) {
+              OS.files = OS.files.filter(x => x.name !== f.name);
+              localStorage.setItem('neonos_files', JSON.stringify(OS.files));
+              render();
+            }
+          }
+        },
+          el('span', {}, '▸ ' + f.name),
+          el('span', { class: 'fsize' }, f.content.length + ' b')
+        ));
+      });
+    }
+    const note = el('p', { style: { fontSize: '10px', color: 'var(--text-dim)', marginTop: '12px' } },
+      'Click to open · Right-click to delete');
+    wrap.append(h, list, note);
+  };
+  render();
+  createWindow({ title: 'File Explorer', width: 420, height: 360, content: wrap });
+}
+
+/* =============================================================
+   APP: SETTINGS
+   ============================================================= */
+const WALLPAPERS = [
+  { id: 'grid', label: 'Neon Grid' },
+  { id: 'sunset', label: 'Synth Sunset' },
+  { id: 'matrix', label: 'Green Rain' },
+  { id: 'plasma', label: 'Plasma' },
+  { id: 'void', label: 'Void' },
+];
+
+function setWallpaper(id) {
+  const wp = $('#wallpaper');
+  wp.className = id;
+  localStorage.setItem('neonos_wp', id);
+  $$('.wp-option').forEach(o => o.classList.toggle('active', o.dataset.wp === id));
+}
+
+function openSettings() {
+  const wrap = el('div', { class: 'settings' });
+
+  const wpHeader = el('h3', {}, '// wallpaper //');
+  const grid = el('div', { class: 'wallpaper-grid' });
+  const current = localStorage.getItem('neonos_wp') || 'grid';
+  WALLPAPERS.forEach(w => {
+    const opt = el('div', { class: 'wp-option' + (w.id === current ? ' active' : ''),
+                             onclick: () => setWallpaper(w.id) },
+      el('div', { class: 'wp-label' }, w.label)
+    );
+    opt.dataset.wp = w.id;
+    // preview: reuse the same class
+    const preview = el('div', { class: w.id, style: { position:'absolute', inset:0 } });
+    // inline the same bg as the real wallpaper
+    const styles = {
+      grid: 'background: linear-gradient(rgba(255,46,166,0.2) 1px,transparent 1px) 0 0/20px 20px,linear-gradient(90deg,rgba(255,46,166,0.2) 1px,transparent 1px) 0 0/20px 20px,linear-gradient(180deg,#0a0415 0%,#1a0328 50%,#2a0540 100%);',
+      sunset: 'background: radial-gradient(circle at 50% 80%,#ff8a3d 0%,#ff2ea6 25%,#7a1e8a 55%,#1a0830 85%);',
+      matrix: 'background: repeating-linear-gradient(90deg,transparent 0,transparent 2px,rgba(0,255,120,0.15) 2px,rgba(0,255,120,0.15) 4px),#001208;',
+      plasma: 'background: radial-gradient(circle at 20% 30%,#ff2ea6,transparent 50%),radial-gradient(circle at 80% 70%,#00e5ff,transparent 55%),#0a0820;',
+      void: 'background: #000;',
+    };
+    preview.style.cssText = styles[w.id];
+    opt.prepend(preview);
+    grid.append(opt);
+  });
+
+  const infoH = el('h3', { style: { marginTop: '20px' } }, '// about //');
+  const info = el('div', { style: { fontSize: '11px', lineHeight: '1.7', color: 'var(--text-dim)' } });
+  info.innerHTML = `
+    <p style="color:var(--text)"><b style="color:var(--accent)">NEON//OS v2.4</b></p>
+    <p>A single-file browser OS with 6 apps, two 3D games, and a VCR.</p>
+    <br>
+    <p><b style="color:var(--accent-2)">⏮ SPECIAL FEATURE: TIME REWIND</b></p>
+    <p>Records a snapshot of your entire desktop every ~500ms — window positions, sizes, active focus, typed text in notepad. Hit REWIND in the taskbar and scrub backward through time to restore any previous state. It's Ctrl+Z for your whole session.</p>
+    <br>
+    <p><b style="color:var(--accent-3)">Why it's special:</b> Most OSes lose state the moment you close a window or mistype. Time Rewind treats your entire session as a reversible timeline. Accidentally closed a note? Moved a window off-screen? Rewind and restore. Works across all apps with zero per-app integration because it snapshots the DOM + app state directly.</p>
+  `;
+
+  wrap.append(wpHeader, grid, infoH, info);
+  createWindow({ title: 'Settings', width: 560, height: 520, content: wrap });
+}
+
+/* =============================================================
+   GAME 1: NEON RUNNER (cyberpunk clone)
+   — dodge obstacles on an infinite synthwave highway
+   ============================================================= */
+function openNeonRunner() {
+  const container = el('div', { class: 'game-container' });
+  const hud = el('div', { class: 'game-hud' },
+    el('div', {}, 'NEON RUNNER'),
+    el('div', { class: 'score' }, 'SCORE: 0')
+  );
+  const overlay = el('div', { class: 'game-overlay' },
+    el('h1', {}, 'NEON RUNNER'),
+    el('p', {}, 'A / D or ← → to dodge · W or ↑ to jump\nAvoid the red cubes · collect cyan boosters\nSPEED INCREASES OVER TIME'),
+    el('button', {}, 'ENGAGE')
+  );
+  container.append(hud, overlay);
+
+  const record = createWindow({ title: 'Neon Runner', width: 720, height: 500, content: container, icon: 'nr' });
+
+  const scoreEl = hud.querySelector('.score');
+  const startBtn = overlay.querySelector('button');
+
+  // Three.js setup
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0a0420, 20, 100);
+
+  const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 200);
+  camera.position.set(0, 3.5, 7);
+  camera.lookAt(0, 1.5, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setClearColor(0x050210);
+  container.append(renderer.domElement);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x330066, 1.2));
+  const dl = new THREE.DirectionalLight(0xff2ea6, 1.2);
+  dl.position.set(5, 10, 5);
+  scene.add(dl);
+  const dl2 = new THREE.DirectionalLight(0x00e5ff, 0.9);
+  dl2.position.set(-5, 8, -5);
+  scene.add(dl2);
+
+  // Sun / backdrop
+  const sunGeo = new THREE.CircleGeometry(30, 40);
+  const sunMat = new THREE.MeshBasicMaterial({ color: 0xff2ea6 });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sun.position.set(0, 20, -80);
+  scene.add(sun);
+  // sun stripes
+  for (let i = 0; i < 6; i++) {
+    const g = new THREE.PlaneGeometry(70, 1.2);
+    const m = new THREE.MeshBasicMaterial({ color: 0x050210 });
+    const p = new THREE.Mesh(g, m);
+    p.position.set(0, 10 + i * 2, -79.9);
+    scene.add(p);
+  }
+
+  // Road
+  const roadGeo = new THREE.PlaneGeometry(10, 200);
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x0c0622, roughness: 0.7, metalness: 0.3 });
+  const road = new THREE.Mesh(roadGeo, roadMat);
+  road.rotation.x = -Math.PI / 2;
+  road.position.z = -90;
+  scene.add(road);
+
+  // Road grid lines
+  const gridLines = [];
+  for (let i = 0; i < 40; i++) {
+    const g = new THREE.PlaneGeometry(10, 0.08);
+    const m = new THREE.MeshBasicMaterial({ color: 0xff2ea6 });
+    const p = new THREE.Mesh(g, m);
+    p.rotation.x = -Math.PI / 2;
+    p.position.y = 0.01;
+    p.position.z = -i * 5;
+    scene.add(p);
+    gridLines.push(p);
+  }
+  // side walls
+  [-5.2, 5.2].forEach(x => {
+    for (let i = 0; i < 30; i++) {
+      const g = new THREE.BoxGeometry(0.1, 0.8, 0.3);
+      const m = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 0.8 });
+      const p = new THREE.Mesh(g, m);
+      p.position.set(x, 0.4, -i * 6);
+      scene.add(p);
+    }
+  });
+
+  // Player
+  const playerGeo = new THREE.BoxGeometry(0.9, 1.2, 0.9);
+  const playerMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 0.6 });
+  const player = new THREE.Mesh(playerGeo, playerMat);
+  player.position.set(0, 0.6, 0);
+  scene.add(player);
+  // player cockpit
+  const cockpit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.3, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xc2ff3d, emissiveIntensity: 0.8 })
+  );
+  cockpit.position.set(0, 1.2, 0);
+  player.add(cockpit);
+
+  // Obstacle pool
+  const obstacles = [];
+  const boosters = [];
+
+  function spawnObstacle(z) {
+    const lane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+    const g = new THREE.BoxGeometry(1.2, 1.4, 1.2);
+    const m = new THREE.MeshStandardMaterial({ color: 0xff2ea6, emissive: 0xff2ea6, emissiveIntensity: 0.9 });
+    const o = new THREE.Mesh(g, m);
+    o.position.set(lane * 2.2, 0.7, z);
+    scene.add(o);
+    obstacles.push(o);
+  }
+  function spawnBooster(z) {
+    const lane = Math.floor(Math.random() * 3) - 1;
+    const g = new THREE.OctahedronGeometry(0.4);
+    const m = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 1.2 });
+    const b = new THREE.Mesh(g, m);
+    b.position.set(lane * 2.2, 1.0, z);
+    scene.add(b);
+    boosters.push(b);
+  }
+
+  // Initial spawns
+  for (let i = 3; i < 20; i++) {
+    if (Math.random() < 0.4) spawnObstacle(-i * 6);
+    if (Math.random() < 0.18) spawnBooster(-i * 6 - 3);
+  }
+
+  const state = {
+    running: false,
+    x: 0, // -1, 0, 1
+    targetX: 0,
+    y: 0,
+    vy: 0,
+    speed: 0.35,
+    score: 0,
+    nextSpawn: -120,
+  };
+
+  const keys = {};
+  const keyDown = (e) => {
+    if (!state.running) return;
+    keys[e.key.toLowerCase()] = true;
+    if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') state.targetX = Math.max(-1, state.targetX - 1);
+    if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') state.targetX = Math.min(1, state.targetX + 1);
+    if ((e.key === 'ArrowUp' || e.key.toLowerCase() === 'w' || e.key === ' ') && state.y <= 0.01) {
+      state.vy = 0.28;
+    }
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  };
+  const keyUp = (e) => { keys[e.key.toLowerCase()] = false; };
+  // Only active when window is focused
+  container.tabIndex = 0;
+  container.addEventListener('keydown', keyDown);
+  container.addEventListener('keyup', keyUp);
+  container.addEventListener('mousedown', () => container.focus());
+
+  let animId;
+  function loop() {
+    animId = requestAnimationFrame(loop);
+
+    if (state.running) {
+      // Move player to target lane
+      const targetWorldX = state.targetX * 2.2;
+      state.x += (targetWorldX - state.x) * 0.2;
+      player.position.x = state.x;
+
+      // Jump physics
+      state.vy -= 0.018;
+      state.y = Math.max(0, state.y + state.vy);
+      if (state.y === 0) state.vy = 0;
+      player.position.y = 0.6 + state.y;
+
+      // Ramp speed
+      state.speed = Math.min(0.9, state.speed + 0.00025);
+
+      // Move world forward
+      obstacles.forEach(o => o.position.z += state.speed);
+      boosters.forEach(b => { b.position.z += state.speed; b.rotation.y += 0.06; b.rotation.x += 0.04; });
+      gridLines.forEach(g => {
+        g.position.z += state.speed;
+        if (g.position.z > 10) g.position.z -= 40 * 5;
+      });
+
+      // Recycle obstacles
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        if (o.position.z > 10) {
+          scene.remove(o);
+          obstacles.splice(i, 1);
+          state.score += 10;
+        } else {
+          // collision
+          const dx = Math.abs(o.position.x - player.position.x);
+          const dz = Math.abs(o.position.z - player.position.z);
+          const dy = player.position.y - 0.6;
+          if (dx < 1.0 && dz < 1.0 && dy < 0.8) {
+            gameOver();
+            return;
+          }
+        }
+      }
+      for (let i = boosters.length - 1; i >= 0; i--) {
+        const b = boosters[i];
+        if (b.position.z > 10) {
+          scene.remove(b);
+          boosters.splice(i, 1);
+        } else {
+          const dx = Math.abs(b.position.x - player.position.x);
+          const dz = Math.abs(b.position.z - player.position.z);
+          if (dx < 0.9 && dz < 0.9) {
+            scene.remove(b);
+            boosters.splice(i, 1);
+            state.score += 50;
+          }
+        }
+      }
+
+      // Spawn ahead
+      if (Math.random() < 0.045) spawnObstacle(-100 + Math.random() * 20);
+      if (Math.random() < 0.015) spawnBooster(-100 + Math.random() * 20);
+
+      // Camera subtle sway
+      camera.position.x = state.x * 0.3;
+
+      state.score += Math.floor(state.speed * 2);
+      scoreEl.textContent = 'SCORE: ' + state.score;
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  function startGame() {
+    // reset
+    obstacles.forEach(o => scene.remove(o)); obstacles.length = 0;
+    boosters.forEach(b => scene.remove(b)); boosters.length = 0;
+    for (let i = 3; i < 20; i++) {
+      if (Math.random() < 0.4) spawnObstacle(-i * 6);
+      if (Math.random() < 0.18) spawnBooster(-i * 6 - 3);
+    }
+    state.running = true; state.score = 0; state.speed = 0.35;
+    state.x = 0; state.targetX = 0; state.y = 0; state.vy = 0;
+    overlay.classList.add('hidden');
+    container.focus();
+  }
+
+  function gameOver() {
+    state.running = false;
+    overlay.querySelector('h1').textContent = 'SYSTEM FAILURE';
+    overlay.querySelector('p').innerHTML = `Final score: <b style="color:var(--accent-3)">${state.score}</b><br><br>A / D or ← → to dodge · W or ↑ to jump`;
+    startBtn.textContent = 'REBOOT';
+    overlay.classList.remove('hidden');
+  }
+
+  startBtn.onclick = startGame;
+
+  function resize() {
+    const w = record.body.clientWidth, h = record.body.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  record.onResize = resize;
+  setTimeout(resize, 30);
+
+  loop();
+
+  record.onClose = () => {
+    cancelAnimationFrame(animId);
+    renderer.dispose();
+  };
+}
+
+/* =============================================================
+   GAME 2: CUBE BREAKER (3D Breakout)
+   ============================================================= */
+function openCubeBreaker() {
+  const container = el('div', { class: 'game-container' });
+  const hud = el('div', { class: 'game-hud' },
+    el('div', {}, 'CUBE BREAKER'),
+    el('div', { class: 'score' }, 'SCORE: 0  LIVES: 3')
+  );
+  const overlay = el('div', { class: 'game-overlay' },
+    el('h1', {}, 'CUBE BREAKER'),
+    el('p', {}, 'Move mouse to control paddle\nClick or SPACE to launch ball\nSmash every cube to win'),
+    el('button', {}, 'START')
+  );
+  container.append(hud, overlay);
+
+  const record = createWindow({ title: 'Cube Breaker', width: 640, height: 520, content: container, icon: 'cb' });
+
+  const scoreEl = hud.querySelector('.score');
+  const startBtn = overlay.querySelector('button');
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x050210);
+  scene.fog = new THREE.Fog(0x050210, 18, 40);
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+  camera.position.set(0, 2, 18);
+  camera.lookAt(0, 4, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.append(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x443366, 1));
+  const pl = new THREE.PointLight(0xff2ea6, 2, 40);
+  pl.position.set(0, 8, 10);
+  scene.add(pl);
+  const pl2 = new THREE.PointLight(0x00e5ff, 1.5, 30);
+  pl2.position.set(-6, 4, 6);
+  scene.add(pl2);
+
+  // Arena bounds
+  const ARENA_W = 12, ARENA_H = 14;
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a0828, emissive: 0xff2ea6, emissiveIntensity: 0.1, roughness: 0.6 });
+  // Back wall
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(ARENA_W, ARENA_H), wallMat);
+  back.position.set(0, ARENA_H/2, -2);
+  scene.add(back);
+  // side walls
+  [-ARENA_W/2, ARENA_W/2].forEach(x => {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.3, ARENA_H, 2), wallMat);
+    w.position.set(x, ARENA_H/2, -1);
+    scene.add(w);
+  });
+  // top wall
+  const top = new THREE.Mesh(new THREE.BoxGeometry(ARENA_W, 0.3, 2), wallMat);
+  top.position.set(0, ARENA_H, -1);
+  scene.add(top);
+
+  // neon edges
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0xff2ea6 });
+  [[-ARENA_W/2, 0, 0], [ARENA_W/2, 0, 0]].forEach(p => {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, ARENA_H, 0.08), edgeMat);
+    bar.position.set(p[0], ARENA_H/2, 0.1);
+    scene.add(bar);
+  });
+  const topBar = new THREE.Mesh(new THREE.BoxGeometry(ARENA_W, 0.08, 0.08), edgeMat);
+  topBar.position.set(0, ARENA_H, 0.1);
+  scene.add(topBar);
+
+  // Paddle
+  const paddleGeo = new THREE.BoxGeometry(2.4, 0.4, 0.6);
+  const paddleMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x00e5ff, emissiveIntensity: 0.7 });
+  const paddle = new THREE.Mesh(paddleGeo, paddleMat);
+  paddle.position.set(0, 1, 0);
+  scene.add(paddle);
+
+  // Ball
+  const ballGeo = new THREE.IcosahedronGeometry(0.28, 1);
+  const ballMat = new THREE.MeshStandardMaterial({ color: 0xc2ff3d, emissive: 0xc2ff3d, emissiveIntensity: 1 });
+  const ball = new THREE.Mesh(ballGeo, ballMat);
+  ball.position.set(0, 1.5, 0);
+  scene.add(ball);
+
+  // Cubes
+  const cubes = [];
+  function buildLevel() {
+    cubes.forEach(c => scene.remove(c)); cubes.length = 0;
+    const cols = 8, rows = 5;
+    const cw = 1.2, ch = 0.6, gap = 0.1;
+    const totalW = cols * (cw + gap) - gap;
+    const startX = -totalW / 2 + cw/2;
+    const palette = [0xff2ea6, 0xff6fb5, 0xff00ff, 0x00e5ff, 0xc2ff3d];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const color = palette[r % palette.length];
+        const m = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.5, roughness: 0.3 });
+        const box = new THREE.Mesh(new THREE.BoxGeometry(cw, ch, 0.6), m);
+        box.position.set(startX + c * (cw + gap), ARENA_H - 2 - r * (ch + gap), 0);
+        box.userData.alive = true;
+        box.userData.points = (rows - r) * 10;
+        scene.add(box);
+        cubes.push(box);
+      }
+    }
+  }
+  buildLevel();
+
+  const state = {
+    running: false,
+    launched: false,
+    vx: 0.08, vy: 0.12,
+    score: 0, lives: 3,
+  };
+
+  let mouseX = 0;
+  container.addEventListener('mousemove', (e) => {
+    const rect = container.getBoundingClientRect();
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1; // -1..1
+    mouseX = nx * (ARENA_W/2 - 1.2);
+  });
+  const launch = () => {
+    if (state.running && !state.launched) {
+      state.launched = true;
+      state.vx = (Math.random() - 0.5) * 0.14;
+      state.vy = 0.18;
+    }
+  };
+  container.addEventListener('click', launch);
+  container.tabIndex = 0;
+  container.addEventListener('keydown', (e) => {
+    if (e.key === ' ') { launch(); e.preventDefault(); }
+  });
+
+  function resetBall() {
+    state.launched = false;
+    ball.position.set(paddle.position.x, paddle.position.y + 0.5, 0);
+    state.vx = 0.08; state.vy = 0.15;
+  }
+
+  function updateHud() {
+    scoreEl.textContent = `SCORE: ${state.score}  LIVES: ${state.lives}`;
+  }
+
+  let animId;
+  function loop() {
+    animId = requestAnimationFrame(loop);
+
+    if (state.running) {
+      paddle.position.x += (mouseX - paddle.position.x) * 0.25;
+      paddle.position.x = Math.max(-ARENA_W/2 + 1.2, Math.min(ARENA_W/2 - 1.2, paddle.position.x));
+
+      if (!state.launched) {
+        ball.position.x = paddle.position.x;
+        ball.position.y = paddle.position.y + 0.5;
+      } else {
+        ball.position.x += state.vx;
+        ball.position.y += state.vy;
+        ball.rotation.x += 0.06; ball.rotation.y += 0.05;
+
+        // walls
+        if (ball.position.x < -ARENA_W/2 + 0.3) { ball.position.x = -ARENA_W/2 + 0.3; state.vx = Math.abs(state.vx); }
+        if (ball.position.x >  ARENA_W/2 - 0.3) { ball.position.x =  ARENA_W/2 - 0.3; state.vx = -Math.abs(state.vx); }
+        if (ball.position.y > ARENA_H - 0.3) { ball.position.y = ARENA_H - 0.3; state.vy = -Math.abs(state.vy); }
+
+        // paddle
+        if (ball.position.y < paddle.position.y + 0.45 &&
+            ball.position.y > paddle.position.y - 0.2 &&
+            Math.abs(ball.position.x - paddle.position.x) < 1.3 &&
+            state.vy < 0) {
+          state.vy = Math.abs(state.vy);
+          const hit = (ball.position.x - paddle.position.x) / 1.2;
+          state.vx = hit * 0.18;
+        }
+
+        // cubes
+        for (const c of cubes) {
+          if (!c.userData.alive) continue;
+          const dx = Math.abs(ball.position.x - c.position.x);
+          const dy = Math.abs(ball.position.y - c.position.y);
+          if (dx < 0.6 + 0.28 && dy < 0.3 + 0.28) {
+            c.userData.alive = false;
+            scene.remove(c);
+            state.score += c.userData.points;
+            // bounce
+            if (dx > dy) state.vx = -state.vx; else state.vy = -state.vy;
+            updateHud();
+            break;
+          }
+        }
+
+        // fall off
+        if (ball.position.y < 0) {
+          state.lives--;
+          updateHud();
+          if (state.lives <= 0) {
+            state.running = false;
+            overlay.querySelector('h1').textContent = 'GAME OVER';
+            overlay.querySelector('p').innerHTML = `Final score: <b style="color:var(--accent-3)">${state.score}</b>`;
+            startBtn.textContent = 'RETRY';
+            overlay.classList.remove('hidden');
+          } else {
+            resetBall();
+          }
+        }
+
+        // win
+        if (cubes.every(c => !c.userData.alive)) {
+          state.running = false;
+          overlay.querySelector('h1').textContent = 'VICTORY';
+          overlay.querySelector('p').innerHTML = `Perfect score: <b style="color:var(--accent-3)">${state.score}</b>`;
+          startBtn.textContent = 'PLAY AGAIN';
+          overlay.classList.remove('hidden');
+        }
+      }
+    }
+
+    // subtle camera pulse
+    camera.position.y = 2 + Math.sin(performance.now() * 0.001) * 0.15;
+    camera.lookAt(0, 6, 0);
+
+    renderer.render(scene, camera);
+  }
+
+  function startGame() {
+    buildLevel();
+    state.running = true; state.score = 0; state.lives = 3;
+    resetBall(); updateHud();
+    overlay.classList.add('hidden');
+    container.focus();
+  }
+
+  startBtn.onclick = startGame;
+
+  function resize() {
+    const w = record.body.clientWidth, h = record.body.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+  record.onResize = resize;
+  setTimeout(resize, 30);
+
+  loop();
+
+  record.onClose = () => {
+    cancelAnimationFrame(animId);
+    renderer.dispose();
+  };
+}
+
+/* =============================================================
+   SPECIAL FEATURE: TIME REWIND
+   Periodically serializes the entire window state + app state.
+   User can scrub backward and restore any prior snapshot.
+   ============================================================= */
+function captureSnapshot(trigger = 'auto') {
+  const wins = [];
+  OS.windows.forEach(r => {
+    const textAreas = [...r.el.querySelectorAll('textarea')].map(t => t.value);
+    wins.push({
+      id: r.id,
+      title: r.title,
+      x: r.el.offsetLeft, y: r.el.offsetTop,
+      w: r.el.offsetWidth, h: r.el.offsetHeight,
+      z: r.el.style.zIndex,
+      hidden: r.el.style.display === 'none',
+      textAreas,
+    });
+  });
+  OS.snapshots.push({
+    t: Date.now(),
+    trigger,
+    wallpaper: $('#wallpaper').className,
+    wins,
+  });
+  if (OS.snapshots.length > OS.maxSnapshots) OS.snapshots.shift();
+}
+function snapshot(trigger) { if (!OS.rewindMode) captureSnapshot(trigger); }
+
+setInterval(() => { if (!OS.rewindMode) captureSnapshot('tick'); }, 500);
+
+function toggleRewind() {
+  OS.rewindMode = !OS.rewindMode;
+  const panel = $('#rewind-panel');
+  const eff = $('#rewind-effect');
+  panel.classList.toggle('open', OS.rewindMode);
+  eff.classList.toggle('active', OS.rewindMode);
+
+  if (OS.rewindMode) {
+    const slider = $('#rewind-slider');
+    slider.max = OS.snapshots.length - 1;
+    slider.value = OS.snapshots.length - 1;
+    $('#rewind-snapshots').textContent = OS.snapshots.length + ' snapshots';
+    updateRewindPreview();
+  } else {
+    $('#rewind-time').textContent = 'NOW';
+  }
+}
+
+function updateRewindPreview() {
+  const slider = $('#rewind-slider');
+  const idx = parseInt(slider.value, 10);
+  const snap = OS.snapshots[idx];
+  if (!snap) return;
+  const age = ((Date.now() - snap.t) / 1000).toFixed(1);
+  $('#rewind-time').textContent = `-${age}s · ${snap.trigger}`;
+
+  // Preview: reposition existing windows to the snapshot's coords (best effort)
+  snap.wins.forEach(w => {
+    const r = OS.windows.get(w.id);
+    if (!r) return;
+    r.el.style.left = w.x + 'px';
+    r.el.style.top = w.y + 'px';
+    r.el.style.width = w.w + 'px';
+    r.el.style.height = w.h + 'px';
+    r.el.style.display = w.hidden ? 'none' : 'flex';
+    if (r.onResize) r.onResize();
+    const tas = [...r.el.querySelectorAll('textarea')];
+    tas.forEach((ta, i) => { if (w.textAreas[i] !== undefined) ta.value = w.textAreas[i]; });
+  });
+
+  // Show wallpaper from that moment
+  $('#wallpaper').className = snap.wallpaper;
+}
+
+$('#rewind-slider').addEventListener('input', updateRewindPreview);
+$('#rewind-btn').addEventListener('click', toggleRewind);
+$('#rewind-restore').addEventListener('click', () => {
+  // keep current preview state and exit rewind
+  OS.snapshots = OS.snapshots.slice(0, parseInt($('#rewind-slider').value, 10) + 1);
+  toggleRewind();
+});
+$('#rewind-cancel').addEventListener('click', () => {
+  // revert to latest
+  const slider = $('#rewind-slider');
+  slider.value = slider.max;
+  updateRewindPreview();
+  toggleRewind();
+});
+
+/* =============================================================
+   BOOT
+   ============================================================= */
+function boot() {
+  buildDesktopIcons();
+  buildStartMenu();
+  // Restore wallpaper
+  const wp = localStorage.getItem('neonos_wp') || 'grid';
+  setWallpaper(wp);
+
+  // Boot splash in terminal-esque style? Just capture initial snapshot.
+  captureSnapshot('boot');
+}
+
+boot();
+
+// Prevent context menu on desktop (not inside apps)
+document.addEventListener('contextmenu', (e) => {
+  if (!e.target.closest('.window') && !e.target.closest('#taskbar')) e.preventDefault();
+});
+
+</script>
+</body>
+</html>
